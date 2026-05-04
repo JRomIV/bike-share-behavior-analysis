@@ -600,7 +600,7 @@ stations_map_highlight
 
 ### 4. Which bike types are most frequently used by casual riders, and how does this compare to those of subscribing members? #################################################
 **Key Findings**
-- Both casual riders and subscribers show similar rankings in bike type usage, with the primary difference being the proportion of electric vs. classic bike usage.
+- Both casual riders and subscribers show similar rankings in bike type usage, with the primary difference being the proportion of electric vs classic bike usage.
 Bar Chart By Bike Type
 - Docked bikes are the least used by both groups, showing limited availability or less convenience.
 
