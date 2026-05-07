@@ -5,11 +5,8 @@ library(leaflet)
 library(leaflet.extras)
 theme_set(theme_bw())
 
-# Load all the trip files into a list
-triplist <- list.files(pattern = "*.csv")
-triplist
-
 # Import the data
+triplist <- list.files(path = "data/trip_data", pattern = "*.csv", full.names = TRUE)
 all_trips <- map(triplist, read_csv)
 
 # Evaluate the data structure before merging the list
@@ -26,7 +23,7 @@ anyDuplicated(all_trips$ride_id)
 head(all_trips)
 summary(all_trips)
 str(all_trips)
-View(all_trips)
+
 
 ###########################  Data Wrangling  ###########################
 
@@ -50,7 +47,6 @@ all_trips$ride_length_sec <- difftime(all_trips$ended_at, all_trips$started_at)
 # convert ride_length_sec to numeric format
 all_trips$ride_length_sec <- as.numeric(all_trips$ride_length_sec)
 
-
 # rename member to subscriber
 all_trips <- all_trips %>%
   mutate(member_casual = recode(member_casual,"member" = "subscriber"))
@@ -62,40 +58,52 @@ all_trips <- all_trips %>%
 # Identify the number of NA values in the dataset
 colSums(is.na(all_trips))
 
-# Create lists of start and end stations with their coordinates
-start_station_list <- all_trips %>%
-  filter(!is.na(start_station_name)) %>% 
-  distinct(start_station_id, start_lat, start_lng, .keep_all = T) %>%
-  select(station_id = start_station_id,
-         station_name = start_station_name,
-         lat = start_lat,
-         lng = start_lng)
 
-end_station_list <- all_trips %>%
-  filter(!is.na(end_station_name)) %>% 
-  distinct(end_station_id, end_lat, end_lng, .keep_all = T) %>% 
-  select(station_id = end_station_id,
-         station_name = end_station_name,
-         lat = end_lat,
-         lng = end_lng)
+# Creating & combining start and end station lists to create a complete list
+full_station_list <- bind_rows(
+  all_trips %>%
+    select(
+      station_id = start_station_id,
+      station_name = start_station_name,
+      lat = start_lat,
+      lng = start_lng
+    ),
+  all_trips %>%
+    select(
+      station_id = end_station_id,
+      station_name = end_station_name,
+      lat = end_lat,
+      lng = end_lng
+    )
+) %>%
+  filter(
+    !is.na(station_id),
+    !is.na(station_name),
+    !is.na(lat),
+    !is.na(lng)
+  ) %>%
+  distinct()
 
-# Combine start and end station lists
-full_station_list <- bind_rows(start_station_list, end_station_list)
 
-# Filter to ensure unique station names per coordinate pair
-full_station_list <- full_station_list %>% 
-  group_by(lat, lng) %>% 
-  filter(n_distinct(station_id) == 1) %>% 
-  summarize(station_id = first(station_id),
-            station_name = first(station_name)) %>% 
-  ungroup()
+# identifying coordinates that have one instance
+# Avoids filling missing station values when the same coordinates are linked to multiple stations.
+valid_coordinates <- full_station_list %>%
+  distinct(lat, lng, station_id) %>%
+  count(lat, lng, name = "station_count") %>%
+  filter(station_count == 1) %>%
+  select(lat, lng)
+
+
+full_station_list <- full_station_list %>%
+  semi_join(valid_coordinates, by = c("lat", "lng")) %>%
+  distinct(lat, lng, .keep_all = TRUE)
+
 
 
 # Join with the main dataset to recover missing start station names and IDs
 all_trips2 <- left_join(all_trips, full_station_list,
                         by = c("start_lat" = "lat",
                                "start_lng" = "lng"))
-View(all_trips2)
 
 
 # Coalesce joined start station names
@@ -103,6 +111,7 @@ all_trips2 <- all_trips2 %>%
   mutate(start_station_name = coalesce(start_station_name, station_name),
          start_station_id = coalesce(start_station_id, station_id)) %>% 
   select(-station_name, -station_id)
+
 
 # Join with the main dataset to recover missing end station names and IDs
 all_trips2 <- left_join(all_trips2, full_station_list,
@@ -113,7 +122,8 @@ all_trips2 <- all_trips2 %>%
          end_station_id = coalesce(end_station_id, station_id)) %>% 
   select(-station_name, -station_id)
 
-# Recovered a couple hundred thousand station names and id's
+
+# Comparing recovered station names to the original dataframe
 # Process was limited due to clustering of station coordinates
 print(colSums(is.na(all_trips)))
 print(colSums(is.na(all_trips2)))
