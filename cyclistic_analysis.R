@@ -128,6 +128,7 @@ all_trips2 <- all_trips2 %>%
 print(colSums(is.na(all_trips)))
 print(colSums(is.na(all_trips2)))
 
+
 ########################### Identifying Extreme Outliers ##############################
 
 # Distribution of ride length
@@ -160,17 +161,22 @@ ggplot(all_trips2, aes(x = ride_length_sec/3600, fill = rideable_type)) +
   scale_fill_brewer(palette = "Set1")
 
 
-# Calculate the distance using the Haversine formula (Output is in meters)
-# This is euclidean distance and is not a reflection of of road network distance
+
+# Calculate straight-line geographic distance between start and end coordinates.
+# Not road-network distance and does not reflect actual route traveled.
 all_trips2 <- all_trips2 %>%
-  rowwise() %>% 
-  mutate(geo_distance_meters = distHaversine(c(start_lng, start_lat), c(end_lng, end_lat)))
+  mutate(
+    distance_meters = geosphere::distHaversine(
+      cbind(start_lng, start_lat),
+      cbind(end_lng, end_lat)
+    )
+  )
 
 
 # Filter and examine erroneous data
 invalid_trips <- all_trips2 %>% 
   filter((ride_length_sec <= 0 |
-            (geo_distance_meters == 0 & ride_length_sec <= 60)) |
+            (distance_meters == 0 & ride_length_sec <= 60)) |
            start_station_name == "Pawel Bialowas - Test- PBSC charging station")
 View(invalid_trips)
 
@@ -189,7 +195,7 @@ general_summary <- all_trips3 %>%
   summarize("Total Number of Rides" = n(),
             "Median Ride Length (Minutes)" = median(ride_length_sec/60),
             "Average Ride Length (Minutes)" = mean(ride_length_sec/60),
-            "Average Ride Distance (Euclidean) (Miles)" = mean(geo_distance_meters*.00062137))
+            "Average Ride Distance (Euclidean) (Miles)" = mean(distance_meters*.00062137))
 View(general_summary)
 
 
@@ -200,7 +206,7 @@ member_summary <- all_trips3 %>%
   summarize(
     "Total Rides" = n(),
     "Avg Ride Length" = mean(ride_length_sec / 60),
-    "Avg Ride Distance (euclidean Miles)" = mean(geo_distance_meters * 0.00062137))
+    "Avg Ride Distance (euclidean Miles)" = mean(distance_meters * 0.00062137))
 
 
 # 1a. Ride Count bar chart (Casual/Subscriber)
