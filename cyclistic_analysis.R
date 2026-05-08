@@ -202,94 +202,130 @@ all_trips2 <- all_trips2 %>%
 
 ########################### Data Analysis ##############################
 
-# Total statistics summary
+# ---- Building summary tables ----
+
+
 general_summary <- all_trips2 %>%
-  group_by() %>%
-  summarize("Total Number of Rides" = n(),
-            "Median Ride Length (Minutes)" = median(ride_length_sec/60),
-            "Average Ride Length (Minutes)" = mean(ride_length_sec/60),
-            "Average Ride Distance (Euclidean) (Miles)" = mean(distance_meters*.00062137))
-
-
-
-# Members statistics summary 
-member_summary <- all_trips2 %>% 
-  group_by(member_casual) %>% 
   summarize(
-    "Total Rides" = n(),
-    "Avg Ride Length" = mean(ride_length_sec / 60),
-    "Avg Ride Distance (euclidean Miles)" = mean(distance_meters * 0.00062137))
+    total_rides = n(),
+    median_ride_length_min = median(ride_length_sec / 60, na.rm = TRUE),
+    avg_ride_length_min = mean(ride_length_sec / 60, na.rm = TRUE),
+    avg_distance_miles = mean(distance_meters * 0.00062137, na.rm = TRUE)
+  )
 
 
-# 1a. Ride Count bar chart (Casual/Subscriber)
-ggplot(member_summary, aes(x = member_casual, y = `Total Rides`, fill = member_casual)) +
+member_summary <- all_trips2 %>%
+  group_by(member_casual) %>%
+  summarize(
+    total_rides = n(),
+    avg_ride_length_min = mean(ride_length_sec / 60, na.rm = TRUE),
+    avg_distance_miles = mean(distance_meters * 0.00062137, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+weekday_summary <- all_trips2 %>%
+  group_by(member_casual, weekday) %>%
+  summarize(total_rides = n(), .groups = "drop")
+
+
+month_summary <- all_trips2 %>%
+  group_by(member_casual, month) %>%
+  summarize(total_rides = n(), .groups = "drop")
+
+
+bike_type_summary <- all_trips2 %>%
+  group_by(member_casual, rideable_type) %>%
+  summarize(total_rides = n(), .groups = "drop")
+
+
+
+# Ride Count bar chart (Casual/Subscriber)
+ggplot(member_summary, aes(x = member_casual, y = total_rides, fill = member_casual)) +
   geom_col(color = "black") +
-  geom_text(aes(label = `Total Rides`), vjust = -0.5, size = 4) +
-  labs(title = "Total Number of Rides (Casual/Annual Subscriber)",
-       x = "Rider Type",
-       y = "Total Number of Rides") +
+  geom_text(aes(label = scales::comma(total_rides)), vjust = -0.5, size = 4) +
+  labs(
+    title = "Total Rides by Rider Type",
+    x = "Rider Type",
+    y = "Total Rides",
+    fill = "Rider Type"
+  ) +
   scale_y_continuous(labels = scales::comma_format()) +
   scale_fill_manual(values = c("casual" = "#F2FC67", "subscriber" = "#4095A5"))
 
 
-# 1b.Avg Ride Length
-ggplot(all_trips2, aes(x = ride_length_sec / 60, fill = member_casual)) +
+# Density plot of ride length by member
+subscriber_avg_ride <- member_summary$avg_ride_length_min[member_summary$member_casual == "subscriber"]
+casual_avg_ride <- member_summary$avg_ride_length_min[member_summary$member_casual == "casual"]
+
+ggplot(all_trips2 %>%
+         filter(ride_length_sec / 60 <= 120),
+       aes(x = ride_length_sec / 60, fill = member_casual)) +
   geom_density(alpha = 0.7) +
-  geom_vline(xintercept = 12.69740, linetype = "dashed", color = "#4095A5", size = 1.2) +
-  geom_vline(xintercept = 25.05755, linetype = "dashed", color = "#D9E62C", size = 1.2) +
-  annotate("text", x = 11.5, y = 0.062, label = "Avg for Subscribers: 12.69 Mins", angle = 90, color = "black") +
-  annotate("text", x = 23.8, y = 0.062, label = "Avg for Casual Riders: 25.05 Mins", angle = 90, color = "black") +
-  labs(title = "Casual Riders Have Longer Ride Durations: Density of Ride Length",
-       x = "Ride Length (Minutes)",
-       y = "Density") +
-  scale_x_continuous(breaks = seq(0, 120, by = 10), limits = c(0, 120)) +
+  geom_vline(xintercept = subscriber_avg_ride, linetype = "dashed", color = "#4095A5", linewidth = 1.2) +
+  geom_vline(xintercept = casual_avg_ride, linetype = "dashed",color = "#D9E62C", linewidth = 1.2) +
+  annotate("text", x = subscriber_avg_ride - 1.2, y = 0.062, label = paste0("Avg for Subscribers: ", round(subscriber_avg_ride, 2), " Mins"), angle = 90, color = "black") +
+  annotate("text", x = casual_avg_ride - 1.2, y = 0.062, label = paste0("Avg for Casual Riders: ", round(casual_avg_ride, 2), " Mins"), angle = 90, color = "black") +
+  labs(
+    title = "Casual Riders Take Longer Trips Than Subscribers",
+    subtitle = "Ride lengths capped at 120 minutes for readability.",
+    x = "Ride Length (Minutes)",
+    y = "Density",
+    fill = "Rider Type"
+  ) +
+  scale_x_continuous(breaks = seq(0, 120, by = 10)) +
   scale_fill_manual(values = c("casual" = "#F2FC67", "subscriber" = "#4095A5"))
 
 
-# 1c. Avg Ride Distance
-ggplot(member_summary, aes(x = member_casual, y = `Avg Ride Distance (euclidean Miles)`, fill = member_casual)) +
+# Avg Ride Distance
+ggplot(member_summary, aes(x = member_casual, y = avg_distance_miles, fill = member_casual)) +
   geom_col(color = "black") +
-  geom_text(aes(label = round(`Avg Ride Distance (euclidean Miles)`, 2)), vjust = -0.5, size = 4) +
+  geom_text(aes(label = round(avg_distance_miles, 2)), vjust = -0.5, size = 4) +
   labs(title = "Average Ride Distance (Straight-Line Miles)",
        x = "Rider Type",
        y = "Euclidean Miles") +
   scale_fill_manual(values = c("casual" = "#F2FC67", "subscriber" = "#4095A5"))
 
 
-# 2a. Bar chart for weekly ride count
-ggplot(all_trips2 %>%
-         group_by(member_casual, weekday) %>%
-         summarize(total_rides = n()),
-       aes(x = weekday, y = total_rides, fill = member_casual)) +
+# Bar chart for weekly ride count
+ggplot(weekday_summary, aes(x = weekday, y = total_rides, fill = member_casual)) +
   geom_col(color = "black", position = "dodge") +
-  labs(title = "Total Rides by Weekday (Casual vs. Annual Subscriber)",
+  labs(title = "Subscribers Ride More Consistently Throughout the Week",
+       subtitle = "Casual riders show stronger weekend usage, while subscribers maintain steadier weekday activity.",
        x = "Weekday",
-       y = "Total Rides") +
+       y = "Total Rides",
+       fill = "Rider Type") +
   scale_y_continuous(labels = scales::comma_format()) +
   scale_fill_manual(values = c("casual" = "#F2FC67", "subscriber" = "#4095A5"))
 
 
-# 2b. Bar chart for monthly ride count
-ggplot(all_trips2 %>%
-         group_by(member_casual, month) %>%
-         summarize(total_rides = n()),
-       aes(x = month, y = total_rides, fill = member_casual)) +
+# Bar chart for monthly ride count
+ggplot(month_summary, aes(x = month, y = total_rides, fill = member_casual)) +
   geom_col(color = "black", position = "dodge") +
-  labs(title = "Total Rides by Month (Casual vs. Annual Subscriber)",
+  labs(title = "Bike Share Usage Peaks During Warmer Months",
+       subtitle = "Activity for both groups rises sharply in warmer months, peaking in September",
        x = "Month",
-       y = "Total Rides") +
+       y = "Total Rides",
+       fill = "Rider Type") +
   scale_y_continuous(labels = scales::comma_format()) +
   scale_fill_manual(values = c("casual" = "#F2FC67", "subscriber" = "#4095A5"))
 
 
 
-# 3a. Top 10 stations
-# since both start and end stations are identical, combine to condense presentation
+# Creating a top stations list
 # Combine start and end station counts into a single summary
-popular_stations <- all_trips2 %>%
-  filter(member_casual == "casual") %>%
-  pivot_longer(cols = c(start_station_name, end_station_name), values_to = "station_name") %>%
-  count(station_name, name = "total_rides", sort = TRUE) %>%
+popular_start_stations <- all_trips2 %>%
+  filter(member_casual == "casual", !is.na(start_station_name)) %>%
+  count(station_name = start_station_name, name = "total_rides")
+
+popular_end_stations <- all_trips2 %>%
+  filter(member_casual == "casual", !is.na(end_station_name)) %>%
+  count(station_name = end_station_name, name = "total_rides")
+
+popular_stations <- bind_rows(popular_start_stations, popular_end_stations) %>%
+  group_by(station_name) %>%
+  summarize(total_rides = sum(total_rides), .groups = "drop") %>%
+  arrange(desc(total_rides)) %>%
   slice_head(n = 10)
 
 # Popular stations bar chart
@@ -305,40 +341,32 @@ ggplot(popular_stations, aes(x = reorder(station_name, total_rides), y = total_r
 # 3b. popular station map
 # Create a station list to have one set of coordinates per station
 map_station_list <- full_station_list %>% 
-  distinct(station_id, station_name, .keep_all = T)
-
-
-# Add a flag to indicate whether each station is popular
-map_station_list <- map_station_list %>%
-  mutate(is_popular = ifelse(station_name %in% popular_stations$station_name, TRUE, FALSE))
+  distinct(station_id, station_name, .keep_all = T) %>% 
+  mutate(is_popular = station_name %in% popular_stations$station_name)
 
 
 # Create the combined map (popular stations in Lime)
-stations_map_highlight <- leaflet(map_station_list) %>%
+leaflet(map_station_list) %>%
   addProviderTiles(provider = "Stadia.AlidadeSmoothDark") %>%
-  setView(lng = -87.70, lat = 41.85,
-          zoom = 11) %>%
+  setView(lng = -87.70, lat = 41.85, zoom = 11) %>%
   addCircleMarkers(
-    lng = ~lng, lat = ~lat,
-    popup = ~paste("Station Name: ", station_name),
+    lng = ~lng,
+    lat = ~lat,
+    popup = ~paste("Station Name:", station_name),
     radius = ~ifelse(is_popular, 14, 2),
     color = ~ifelse(is_popular, "#F2FC67", "#577B8A"),
-    fillOpacity = 0.9)
-stations_map_highlight
-
+    fillOpacity = 0.9
+  )
 
 
 # 4. Bike type
 # Create a grouped bar chart by bike type
-ggplot(all_trips2 %>%
-    group_by(member_casual, rideable_type) %>%
-    summarize(total_rides = n(), .groups = "drop") %>%
-    mutate(rideable_type = reorder(rideable_type, -total_rides)),
-  aes(x = rideable_type, y = total_rides, fill = member_casual)) +
+ggplot(bike_type_summary, aes(x = reorder(rideable_type, -total_rides), y = total_rides, fill = member_casual)) +
   geom_col(color = "black", position = "dodge") +
-  labs(title = "Bike Type Usage by Rider Type",
-    x = "Bike Type",
-    y = "Total Rides",
-    fill = "Rider Type") +
+  labs(title = "Bike Type Usage Differs by Rider Type",
+       subtitle = "Subscribers used classic bikes more often, while casual riders showed stronger electric bike usage.",
+       x = "Bike Type",
+       y = "Total Rides",
+       fill = "Rider Type") +
   scale_y_continuous(labels = scales::comma_format()) +
   scale_fill_manual(values = c("casual" = "#F2FC67", "subscriber" = "#4095A5"))
