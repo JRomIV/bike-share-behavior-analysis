@@ -51,8 +51,15 @@ all_trips$ride_length_sec <- as.numeric(all_trips$ride_length_sec)
 all_trips <- all_trips %>%
   mutate(member_casual = recode(member_casual,"member" = "subscriber"))
 
-
-### Addressing missing station names ###
+# Calculate straight-line geographic distance between start and end coordinates.
+# Not road-network distance and does not reflect actual route traveled.
+all_trips <- all_trips %>%
+  mutate(
+    distance_meters = geosphere::distHaversine(
+      cbind(start_lng, start_lat),
+      cbind(end_lng, end_lat)
+    )
+  )
 
 
 # Identify the number of NA values in the dataset
@@ -139,69 +146,74 @@ summary(all_trips2$ride_length_sec)
 fourth_quar_ride_length <- quantile(all_trips2$ride_length_sec, probs = c(.80, .85, .90, .95, .99, .998, .999, 1))
 fourth_quar_ride_length
 
-
-# The distribution is vast with great extremes, with a majority of outliers associated with the docked bikes
-# Perhaps this is an indication of an error occurring with docked bikes. 
-ggplot(all_trips2, aes(x = ride_length_sec/3600, color = rideable_type)) +
-  geom_boxplot(outlier.color = "darkred", alpha = 0.3) +
-  labs(title = "Total Distribution of Ride Length (Split by Bike Type)",
-       x = "Ride Length (Hours)") +
-  annotate("Text", x = 312, y = 0.04, label = " Majority of Outliers", size = 5)
-
-
 # Most trips fall within a few hours or less, with the exception of docked bikes
-ggplot(all_trips2, aes(x = ride_length_sec/3600, fill = rideable_type)) +
+ggplot(all_trips2 %>%
+    filter(
+      !is.na(ride_length_sec),
+      is.finite(ride_length_sec),
+      ride_length_sec > 0,
+      ride_length_sec / 3600 <= 600
+      ),
+  aes(x = ride_length_sec / 3600, fill = rideable_type)) +
   geom_histogram(binwidth = 10, color = "black") +
-  labs(title = "Distribution of Ride Length (Split by Bike Type, Log10 scale)",
-       x = "Ride Length (Hours)",
-       y = "Log10(Count)") +
-  scale_y_log10(labels = scales::comma_format()) + 
-  xlim(0, 700) +
   facet_wrap(~rideable_type) +
+  scale_y_log10(labels = scales::comma_format()) +
+  labs(
+    title = "Extreme Ride Durations Were Concentrated in Docked Bike Records",
+    subtitle = "Ride duration shown in hours; y-axis uses log scale to show rare extreme values.",
+    x = "Ride Length (Hours)",
+    y = "Ride Count (Log10 Scale)",
+    fill = "Bike Type"
+  ) +
   scale_fill_brewer(palette = "Set1")
 
 
-
-# Calculate straight-line geographic distance between start and end coordinates.
-# Not road-network distance and does not reflect actual route traveled.
-all_trips2 <- all_trips2 %>%
-  mutate(
-    distance_meters = geosphere::distHaversine(
-      cbind(start_lng, start_lat),
-      cbind(end_lng, end_lat)
-    )
-  )
-
-
 # Filter and examine erroneous data
-invalid_trips <- all_trips2 %>% 
-  filter((ride_length_sec <= 0 |
-            (distance_meters == 0 & ride_length_sec <= 60)) |
-           start_station_name == "Pawel Bialowas - Test- PBSC charging station")
-View(invalid_trips)
+invalid_trips <- all_trips2 %>%
+  transmute(
+    ride_id,
+    invalid_reason = case_when(
+      ride_length_sec <= 0 ~ "Negative ride duration",
+      is.na(distance_meters) ~ "Missing end coordinates / distance",
+      distance_meters == 0 & ride_length_sec <= 60 ~ "Zero-distance ride under 60 seconds",
+      start_station_name == "Pawel Bialowas - Test- PBSC charging station" ~ "Test station record",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(invalid_reason))
 
+invalid_trips %>%
+  count(invalid_reason, sort = TRUE)
 
-# After review, remove NA values and erroneous trips
-all_trips3 <- all_trips2 %>%
-  na.omit() %>%
-  anti_join(invalid_trips, by = "ride_id")
+# After review, remove erroneous rides and docked bikes
+# Docked bike records were excluded from rider behavior analysis 
+# because they contained issues with data capture expressed as trip-ending issues as previously discovered
+all_trips2 <- all_trips2 %>%
+  anti_join(invalid_trips, by = "ride_id") %>%
+  filter(
+    !is.na(ride_id),
+    !is.na(member_casual),
+    !is.na(rideable_type),
+    !is.na(ride_length_sec),
+    !is.na(distance_meters),
+    rideable_type != "docked_bike"
+  )
 
 
 ########################### Data Analysis ##############################
 
 # Total statistics summary
-general_summary <- all_trips3 %>%
+general_summary <- all_trips2 %>%
   group_by() %>%
   summarize("Total Number of Rides" = n(),
             "Median Ride Length (Minutes)" = median(ride_length_sec/60),
             "Average Ride Length (Minutes)" = mean(ride_length_sec/60),
             "Average Ride Distance (Euclidean) (Miles)" = mean(distance_meters*.00062137))
-View(general_summary)
 
 
 
 # Members statistics summary 
-member_summary <- all_trips3 %>% 
+member_summary <- all_trips2 %>% 
   group_by(member_casual) %>% 
   summarize(
     "Total Rides" = n(),
@@ -221,7 +233,7 @@ ggplot(member_summary, aes(x = member_casual, y = `Total Rides`, fill = member_c
 
 
 # 1b.Avg Ride Length
-ggplot(all_trips3, aes(x = ride_length_sec / 60, fill = member_casual)) +
+ggplot(all_trips2, aes(x = ride_length_sec / 60, fill = member_casual)) +
   geom_density(alpha = 0.7) +
   geom_vline(xintercept = 12.69740, linetype = "dashed", color = "#4095A5", size = 1.2) +
   geom_vline(xintercept = 25.05755, linetype = "dashed", color = "#D9E62C", size = 1.2) +
@@ -245,7 +257,7 @@ ggplot(member_summary, aes(x = member_casual, y = `Avg Ride Distance (euclidean 
 
 
 # 2a. Bar chart for weekly ride count
-ggplot(all_trips3 %>%
+ggplot(all_trips2 %>%
          group_by(member_casual, weekday) %>%
          summarize(total_rides = n()),
        aes(x = weekday, y = total_rides, fill = member_casual)) +
@@ -258,7 +270,7 @@ ggplot(all_trips3 %>%
 
 
 # 2b. Bar chart for monthly ride count
-ggplot(all_trips3 %>%
+ggplot(all_trips2 %>%
          group_by(member_casual, month) %>%
          summarize(total_rides = n()),
        aes(x = month, y = total_rides, fill = member_casual)) +
@@ -274,7 +286,7 @@ ggplot(all_trips3 %>%
 # 3a. Top 10 stations
 # since both start and end stations are identical, combine to condense presentation
 # Combine start and end station counts into a single summary
-popular_stations <- all_trips3 %>%
+popular_stations <- all_trips2 %>%
   filter(member_casual == "casual") %>%
   pivot_longer(cols = c(start_station_name, end_station_name), values_to = "station_name") %>%
   count(station_name, name = "total_rides", sort = TRUE) %>%
@@ -318,7 +330,7 @@ stations_map_highlight
 
 # 4. Bike type
 # Create a grouped bar chart by bike type
-ggplot(all_trips3 %>%
+ggplot(all_trips2 %>%
     group_by(member_casual, rideable_type) %>%
     summarize(total_rides = n(), .groups = "drop") %>%
     mutate(rideable_type = reorder(rideable_type, -total_rides)),
