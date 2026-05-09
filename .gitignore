@@ -1,2 +1,12 @@
 data/trip_data/
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
 
+renv/library/
+renv/staging/
+renv/local/
+renv/cellar/
+renv/python/
+renv/sandbox/
