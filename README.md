@@ -665,3 +665,15 @@ Create engaging features that allow riders to track and share ride stats, achiev
 #### 4. Offer Exclusive Perks for Subscribers
 
 Perks like early access to electric bikes or discounts at nearby businesses can make a subscription feel more valuable. Small benefits like these could help nudge casual riders toward upgrading.
+
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+# Reproducibility
+
+This project uses `renv` to manage R package versions.
+
+To recreate the package environment, run:
+
+```r
+install.packages("renv")
+renv::restore()
