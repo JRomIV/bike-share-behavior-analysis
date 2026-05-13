@@ -103,7 +103,11 @@ all_trips2 <- all_trips2 %>%
 
 
 
-# Comparing recovered station names to the original data frame
+
+# ---- Validate station recovery ----
+
+
+# Compare missing station values before and after coordinate-based recovery
 station_recovery_summary <- tibble(
   field = c("Start Station ID", "Start Station Name", "End Station ID", "End Station Name"),
   missing_before = c(
@@ -120,6 +124,36 @@ station_recovery_summary <- tibble(
   )
 ) %>%
   mutate(recovered = missing_before - missing_after)
+
+station_recovery_summary
+
+
+# Validate that station IDs and names are missing together
+station_missing_alignment <- all_trips2 %>%
+  summarize(
+    start_id_only_missing = sum(is.na(start_station_id) & !is.na(start_station_name)),
+    start_name_only_missing = sum(!is.na(start_station_id) & is.na(start_station_name)),
+    end_id_only_missing = sum(is.na(end_station_id) & !is.na(end_station_name)),
+    end_name_only_missing = sum(!is.na(end_station_id) & is.na(end_station_name))
+  )
+
+station_missing_alignment
+
+
+# Check for station IDs tied to multiple station name variants
+station_name_variants <- bind_rows(
+  all_trips2 %>%
+    transmute(station_id = start_station_id, station_name = start_station_name),
+  all_trips2 %>%
+    transmute(station_id = end_station_id, station_name = end_station_name)
+) %>%
+  filter(!is.na(station_id), !is.na(station_name)) %>%
+  distinct(station_id, station_name) %>%
+  count(station_id, name = "name_count") %>%
+  filter(name_count > 1) %>%
+  arrange(desc(name_count))
+
+station_name_variants
 
 
 
@@ -220,16 +254,19 @@ bike_type_summary <- all_trips2 %>%
 
 # Creating a top stations list
 popular_start_stations <- all_trips2 %>%
-  filter(member_casual == "casual", !is.na(start_station_name)) %>%
-  count(station_name = start_station_name, name = "total_rides")
+  filter(member_casual == "casual", !is.na(start_station_id), !is.na(start_station_name)) %>%
+  count(station_id = start_station_id, station_name = start_station_name, name = "total_rides")
 
 popular_end_stations <- all_trips2 %>%
-  filter(member_casual == "casual", !is.na(end_station_name)) %>%
-  count(station_name = end_station_name, name = "total_rides")
+  filter(member_casual == "casual", !is.na(end_station_id), !is.na(end_station_name)) %>%
+  count(station_id = end_station_id, station_name = end_station_name, name = "total_rides")
 
+
+# Group by station_id to avoid splitting stations with minor name variants.
+# The first station_name is kept only as a display label.
 popular_stations <- bind_rows(popular_start_stations, popular_end_stations) %>%
-  group_by(station_name) %>%
-  summarize(total_rides = sum(total_rides), .groups = "drop") %>%
+  group_by(station_id) %>%
+  summarize(station_name = first(station_name), total_rides = sum(total_rides), .groups = "drop") %>%
   arrange(desc(total_rides)) %>%
   slice_head(n = 10)
 
