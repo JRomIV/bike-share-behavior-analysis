@@ -418,14 +418,14 @@ ggplot(popular_stations, aes(x = reorder(station_name, total_rides), y = total_r
 
 # Popular station map
 # Uses case_when to map colors to the image
-stations_map_highlight <- leaflet(map_station_list) %>%
-  addProviderTiles(provider = "Stadia.AlidadeSmoothDark") %>%
-  setView(lng = -87.63, lat = 41.88, zoom = 11.7) %>%
+stations_map_highlight <- leaflet(map_station_list, options = leafletOptions(zoomControl = FALSE)) %>%
+  addProviderTiles(provider = "Stadia.AlidadeSmoothDark", options = providerTileOptions(attribution = "")) %>%
+  setView(lng = -87.65, lat = 41.88, zoom = 11.7) %>%
   addCircleMarkers(
     lng = ~lng,
     lat = ~lat,
     popup = ~paste("Station Name:", station_name),
-    radius = ~case_when(is_top_station ~ 10, is_popular ~ 8, T ~ 1),
+    radius = ~case_when(is_top_station ~ 7, is_popular ~ 7, T ~ 1),
     color = ~case_when(is_top_station ~ "#F28E2B", is_popular ~ "#F2FC67", T ~ "#577B8A"),
     fillOpacity = .9
   ) %>% 
