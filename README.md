@@ -4,9 +4,9 @@
 
 This analysis used 5.8M+ Chicago bike-share trips to compare how casual riders and members use the service. The goal was to uncover behavior patterns that could support better membership conversion strategies.
 
-> **Business Question:** How do casual riders and members behave differently, and how can Cyclistic convert more casual riders into members?
+**Business Question:** How do casual riders and members behave differently, and how can Cyclistic convert more casual riders into members?
 
-> **Quick Summary:** Casual riders behave more recreationally, especially around weekends, warmer months, longer rides, higher electric bike usage, and higher use of lakefront/downtown stations. This suggests Cyclistic should target recreational casual riders with seasonal or weekend focused membership offers in popular casual zones, then test whether those offers increase conversion.
+**Quick Summary:** Casual riders behave more recreationally, especially around weekends, warmer months, longer rides, higher electric bike usage, and higher use of lakefront/downtown stations. This suggests Cyclistic should target recreational casual riders with seasonal or weekend focused membership offers in popular casual zones, then test whether those offers increase conversion.
 
 
 
@@ -163,7 +163,6 @@ station_name_instances <- bind_rows(
   count(station_id, name = "name_count") %>%
   filter(name_count > 1) %>%
   arrange(desc(name_count))
-
 ```
 </details>
 
@@ -213,7 +212,6 @@ ride_length_hist_plot <- ggplot(all_trips2 %>%
   scale_fill_manual(values = c("classic_bike" = "#F2FC67", "electric_bike" = "#4095A5", "docked_bike" = "#F28E2B"))
 
 ride_length_hist_plot
-
 ```
 </details>
 
@@ -344,7 +342,7 @@ trip_distance_plot
 ```
 </details>
 
-### Electric bikes represent a larger share of casual rider activity
+### Electric bikes represent a larger share of casual rides
 
 Electric bikes made up a larger portion of casual rider trips than member trips. This suggests electric bike access may be an attractive part of the casual experience and could be worth considering when creating targeted offers.
 
@@ -404,7 +402,7 @@ monthly_trip_count_plot
 </details>
 
 
-### Casual demand is geographically concentrated
+### Casual activity is concentrated within the downtown lakefront area
 The highest casual station activity clusters around areas near the downtown lakefront, suggesting that conversion efforts should focus on these areas instead of being citywide.
 
 ![Top casual rider stations](assets/hbar_popular_stations.png)
@@ -469,12 +467,12 @@ stations_map_highlight
 
 ### 1. Target casual riders near lakefront and downtown stations
 
-Casual rider activity is clearly concentrated around the lakefront and downtown stations. Conversion campaigns should focus on these areas during high activity months instead of spreading marketing evenly across all stations.
+Casual rider activity is clearly concentrated around the lakefront and downtown stations. Conversion campaigns should focus on these areas during busy months instead of spreading marketing across all stations.
 
 
 ### 2. Launch seasonal campaigns before peak demand
 
-Ride volume rises sharply during warmer months. Campaigns should begin in spring, before the casual rider peak so the memberships can feel useful before their riding season.
+Ride volume rises sharply during warmer months. Campaigns should begin in spring, before the casual rider peak so that memberships can feel useful before their riding season.
 
 
 ### 3. Test weekend-to-member conversion offers
