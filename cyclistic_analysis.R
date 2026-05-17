@@ -176,8 +176,11 @@ ride_length_hist_plot <- ggplot(all_trips2 %>%
   ) +
   scale_fill_manual(values = c("classic_bike" = "#F2FC67", "electric_bike" = "#4095A5", "docked_bike" = "#F28E2B"))
 
-ride_length_hist_plot
- 
+# Log scale warning is suppressed because empty histogram bins have zero counts.
+# The warning does not impact the data or the plot
+suppressWarnings(print(ride_length_hist_plot))
+
+
 # Creating function to save plots using PNG, ggsave was exporting at a lower quality
 save_plot <- function(plot, filename) {
   png(filename = filename, width = 1249, height = 745, units = "px", res = 96)
@@ -186,7 +189,8 @@ save_plot <- function(plot, filename) {
   dev.off()
 }
 
-save_plot(ride_length_hist_plot, "assets/hist_ride_length.png")
+# Log scale warning is suppressed because empty histogram bins have zero counts.
+suppressWarnings(save_plot(ride_length_hist_plot, "assets/hist_ride_length.png"))
 
 
 # Filter and examine erroneous data
@@ -198,6 +202,7 @@ invalid_trips <- all_trips2 %>%
       is.na(distance_meters) ~ "Missing end coordinates/distance",
       distance_meters == 0 & ride_length_sec <= 60 ~ "Zero-distance ride under 60 seconds",
       start_station_name == "Pawel Bialowas - Test- PBSC charging station" ~ "Test station trip",
+      TRUE ~ NA_character_
     )
   ) %>%
   filter(!is.na(invalid_reason))
