@@ -156,7 +156,7 @@ ride_length_fourth_q <- quantile(all_trips2$ride_length_sec, probs = c(.80, .85,
 
 # Plotting histogram: Ride length distribution by bike type
 # Used log scale to show the dist of the ride lengths clearer
-ggplot(all_trips2 %>%
+ride_length_hist_plot <- ggplot(all_trips2 %>%
     filter(
       !is.na(ride_length_sec),
       is.finite(ride_length_sec),
@@ -176,6 +176,22 @@ ggplot(all_trips2 %>%
   ) +
   scale_fill_manual(values = c("classic_bike" = "#F2FC67", "electric_bike" = "#4095A5", "docked_bike" = "#F28E2B"))
 
+# Log scale warning is suppressed because empty histogram bins have zero counts.
+# The warning does not impact the data or the plot
+suppressWarnings(print(ride_length_hist_plot))
+
+
+# Creating function to save plots using PNG, ggsave was exporting at a lower quality
+save_plot <- function(plot, filename) {
+  png(filename = filename, width = 1249, height = 745, units = "px", res = 96)
+  
+  print(plot)
+  dev.off()
+}
+
+# Log scale warning is suppressed because empty histogram bins have zero counts.
+suppressWarnings(save_plot(ride_length_hist_plot, "assets/hist_ride_length.png"))
+
 
 # Filter and examine erroneous data
 invalid_trips <- all_trips2 %>%
@@ -186,6 +202,7 @@ invalid_trips <- all_trips2 %>%
       is.na(distance_meters) ~ "Missing end coordinates/distance",
       distance_meters == 0 & ride_length_sec <= 60 ~ "Zero-distance ride under 60 seconds",
       start_station_name == "Pawel Bialowas - Test- PBSC charging station" ~ "Test station trip",
+      TRUE ~ NA_character_
     )
   ) %>%
   filter(!is.na(invalid_reason))
@@ -237,7 +254,11 @@ month_summary <- all_trips2 %>%
 
 bike_type_summary <- all_trips2 %>%
   group_by(member_casual, rideable_type) %>%
-  summarize(total_rides = n(), .groups = "drop")
+  summarize(total_rides = n(), .groups = "drop") %>% 
+  group_by(member_casual) %>%
+  mutate(pct_rides = total_rides / sum(total_rides)) %>%
+  ungroup() %>%
+  mutate(rideable_type = factor(rideable_type, levels = c("electric_bike", "classic_bike")))
 
 
 # Creating a top stations list for casual riders
@@ -280,12 +301,12 @@ map_station_list <- full_station_list %>%
 
 
 # Plotting bar chart: Total rides by rider Type
-ggplot(member_summary, aes(x = member_casual, y = total_rides, fill = member_casual)) +
+total_rides_plot <- ggplot(member_summary, aes(x = member_casual, y = total_rides, fill = member_casual)) +
   geom_col(color = "black") +
   geom_text(aes(label = scales::comma(total_rides)), vjust = -0.5) +
   labs(
-    title = "Members Account for Most Trips",
-    subtitle = "Casual riders make up about 39% of total trips.",
+    title = "Casual Riders Represent 39% of Total Trips",
+    subtitle = "~2.18M casual trips vs. ~3.39M member trips",
     x = "Rider Type",
     y = "Total Trips",
     fill = "Rider Type"
@@ -294,6 +315,29 @@ ggplot(member_summary, aes(x = member_casual, y = total_rides, fill = member_cas
   scale_fill_manual(values = c("casual" = "#F2FC67", "member" = "#4095A5")) +
   theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
 
+total_rides_plot
+
+save_plot(total_rides_plot, "assets/bar_total_rides_by_rider.png")
+
+
+
+# Plotting bar chart: Weekly total rides by rider type
+weekly_trip_count_plot <- ggplot(weekday_summary, aes(x = weekday, y = total_rides, fill = member_casual)) +
+  geom_col(color = "black", position = "dodge") +
+  labs(
+    title = "Casual Usage Peaks on Weekends",
+    subtitle = "Members maintain steady weekday activity.",
+    x = "Weekday",
+    y = "Total Trips",
+    fill = "Rider Type"
+  ) +
+  scale_y_continuous(labels = scales::comma_format()) +
+  scale_fill_manual(values = c("casual" = "#F2FC67", "member" = "#4095A5"))
+
+weekly_trip_count_plot
+
+save_plot(weekly_trip_count_plot, "assets/bar_weekly_trip_count.png")
+
 
 
 # Plotting density chart: Ride length by rider type
@@ -301,7 +345,7 @@ member_avg_ride <- member_summary$avg_ride_length_min[member_summary$member_casu
 casual_avg_ride <- member_summary$avg_ride_length_min[member_summary$member_casual == "casual"]
 
 
-ggplot(all_trips2 %>%
+density_trip_length_plot <- ggplot(all_trips2 %>%
          filter((ride_length_sec / 60) <= 120),
        aes(x = ride_length_sec / 60, fill = member_casual)) +
   geom_density(alpha = 0.7) +
@@ -329,71 +373,75 @@ ggplot(all_trips2 %>%
   scale_x_continuous(breaks = seq(0, 120, by = 10)) +
   scale_fill_manual(values = c("casual" = "#F2FC67", "member" = "#4095A5"))
 
+density_trip_length_plot
+
+save_plot(density_trip_length_plot, "assets/density_trip_length.png")
 
 
 # Plotting bar chart: Average ride distance by rider type
-ggplot(member_summary, aes(x = member_casual, y = avg_distance_miles, fill = member_casual)) +
+trip_distance_plot <- ggplot(member_summary, aes(x = member_casual, y = avg_distance_miles, fill = member_casual)) +
   geom_col(color = "black") +
   geom_text(aes(label = round(avg_distance_miles, 2)), vjust = -0.5) +
   labs(
-    title = "Casual Riders Take Slightly Farther Trips",
+    title = "Average Trip Distance Is Similar Between Rider Types",
     subtitle = "Distance is calculated as straight-line distance, not actual route distance.",
     x = "Rider Type",
-    y = "Avg Ride Distance",
+    y = "Avg Trip Distance",
     fill = "Rider Type"
   ) +
   scale_fill_manual(values = c("casual" = "#F2FC67", "member" = "#4095A5")) +
   theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
+
+trip_distance_plot
+
+save_plot(trip_distance_plot, "assets/bar_trip_distance.png")
+
 
 
 # ---- Bike type visualization ----
 
 
 # Plotting bar chart: Bike type usage by rider type
-ggplot(bike_type_summary, aes(x = reorder(rideable_type, -total_rides), y = total_rides, fill = member_casual)) +
-  geom_col(color = "black", position = position_dodge(width = .9)) +
-  geom_text(aes(label = scales::comma(total_rides)), position = position_dodge(width = 0.9), vjust = -0.5) +
+bike_type_plot <- ggplot(bike_type_summary, aes(x = rideable_type, y = pct_rides, fill = member_casual)) +
+  geom_col(color = "black") +
+  geom_text(aes(label = scales::percent(pct_rides)), vjust = -0.5) +
+  facet_wrap(~member_casual) +
   labs(
-    title = "Bike Type Usage Differs by Rider Type",
-    subtitle = "Members used classic bikes more often, while casual riders showed stronger electric bike usage.",
+    title = "Electric Bikes Are a Larger Share of Casual Rider Trips",
+    subtitle = "Bike types are shown as a percentage of trips for each rider type.",
     x = "Bike Type",
-    y = "Total Rides",
+    y = "Share of Trips",
     fill = "Rider Type"
   ) +
-  scale_y_continuous(labels = scales::comma_format()) +
+  scale_y_continuous(limits = c(0, 1)) +
   scale_fill_manual(values = c("casual" = "#F2FC67", "member" = "#4095A5")) +
-  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), legend.position = "none")
+
+bike_type_plot
+
+save_plot(bike_type_plot, "assets/bar_bike_type_count.png")
+
 
 
 # ---- Time-based visualizations ----
 
 
 # Plotting bar chart: Monthly total rides by rider type
-ggplot(month_summary, aes(x = month, y = total_rides, fill = member_casual)) +
+monthly_trip_count_plot <- ggplot(month_summary, aes(x = month, y = total_rides, fill = member_casual)) +
   geom_col(color = "black", position = "dodge") +
   labs(
-    title = "Bike Share Usage Rises in Warmer Months",
-    subtitle = "Activity for both groups increases from spring through fall.",
+    title = "Casual Rider Activity Peaks in Warmer Months",
+    subtitle = "Casual trips rise sharply from spring through summer",
     x = "Month",
-    y = "Total Rides",
+    y = "Total Trips",
     fill = "Rider Type"
   ) +
   scale_y_continuous(labels = scales::comma_format()) +
   scale_fill_manual(values = c("casual" = "#F2FC67", "member" = "#4095A5"))
 
+monthly_trip_count_plot
 
-# Plotting bar chart: Weekly total rides by rider type
-ggplot(weekday_summary, aes(x = weekday, y = total_rides, fill = member_casual)) +
-  geom_col(color = "black", position = "dodge") +
-  labs(
-    title = "Members Ride More Consistently Throughout the Week",
-    subtitle = "Casual riders show stronger weekend usage, while members maintain steadier weekday activity.",
-    x = "Weekday",
-    y = "Total Rides",
-    fill = "Rider Type"
-  ) +
-  scale_y_continuous(labels = scales::comma_format()) +
-  scale_fill_manual(values = c("casual" = "#F2FC67", "member" = "#4095A5"))
+save_plot(monthly_trip_count_plot, "assets/bar_monthly_trip_count.png")
 
 
 
@@ -402,39 +450,45 @@ ggplot(weekday_summary, aes(x = weekday, y = total_rides, fill = member_casual))
 
 
 # Plotting bar chart: Top casual rider stations
-ggplot(popular_stations, aes(x = reorder(station_name, total_rides), y = total_rides, fill = is_top_station)) +
+popular_stations_plot <- ggplot(popular_stations, aes(x = reorder(station_name, total_rides), y = total_rides, fill = is_top_station)) +
   geom_col(color = "black") +
   coord_flip() +
   labs(
     title = "Top Casual Rider Stations Center Around the Downtown Lakefront Area",
     subtitle = "'Streeter Dr & Grand Ave' has nearly twice as many trips as the next highest station.",
     x = "",
-    y = "Total Rides"
+    y = "Total Trips"
   ) +
   scale_y_continuous(labels = scales::comma_format()) +
   scale_fill_manual(values = c("TRUE" = "#F28E2B", "FALSE" = "#F2FC67")) +
   theme(legend.position = "none")
 
+popular_stations_plot
+
+save_plot(popular_stations_plot, "assets/hbar_popular_stations.png")
+
+
 
 # Popular station map
 # Uses case_when to map colors to the image
-stations_map_highlight <- leaflet(map_station_list) %>%
-  addProviderTiles(provider = "Stadia.AlidadeSmoothDark") %>%
-  setView(lng = -87.63, lat = 41.88, zoom = 11.7) %>%
+stations_map_highlight <- leaflet(map_station_list, options = leafletOptions(zoomControl = F)) %>%
+  addProviderTiles(provider = "Stadia.AlidadeSmoothDark", options = providerTileOptions(attribution = "")) %>%
+  setView(lng = -87.65, lat = 41.88, zoom = 11.7) %>%
   addCircleMarkers(
     lng = ~lng,
     lat = ~lat,
     popup = ~paste("Station Name:", station_name),
-    radius = ~case_when(is_top_station ~ 10, is_popular ~ 8, T ~ 1),
+    radius = ~case_when(is_top_station ~ 7, is_popular ~ 7, T ~ 1),
     color = ~case_when(is_top_station ~ "#F28E2B", is_popular ~ "#F2FC67", T ~ "#577B8A"),
     fillOpacity = .9
   ) %>% 
   addLegend(
     position = "topright",
     colors = c("#F28E2B", "#F2FC67", "#577B8A"),
-    labels = c("Most Popular", "More Popular", "Less Popular"),
+    labels = c("Most popular station", "Top 10 casual stations", "Other stations"),
     title = "Casual Rider Popular Stations",
     opacity = 1
   )
 
+# The snapshot used in the README was exported manually from the Viewer.
 stations_map_highlight

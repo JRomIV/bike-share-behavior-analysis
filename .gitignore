@@ -1,9 +1,9 @@
-data/trip_data/
+data/trip_data/*
+!data/trip_data/.gitkeep
 .Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
-
 renv/library/
 renv/staging/
 renv/local/
