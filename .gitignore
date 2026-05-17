@@ -1,4 +1,5 @@
 data/trip_data/*
+!data/trip_data/.gitkeep
 .Rproj.user/
 .Rhistory
 .RData
